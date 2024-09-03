@@ -104,6 +104,12 @@ namespace LenovoCustomLogo
 
         public static string? GetEfiSystemPartitionVolumePath()
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                //TODO: Check other common locations or detect mountpoint automagically.
+                //see: https://wiki.archlinux.org/title/EFI_system_partition#Typical_mount_points
+                return "/boot/";
+            }
             uint buflen = 520;
             IntPtr info;
             while (true)

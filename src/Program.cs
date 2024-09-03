@@ -19,6 +19,9 @@ namespace LenovoCustomLogo
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
         private static extern unsafe bool SetFirmwareEnvironmentVariableExW(string lpName, string lpGuid, void* pValue, int nSize, int attributes);
 
+        [DllImport("libc", SetLastError = true)]
+        internal static extern uint geteuid();
+
         [Flags]
         public enum LogoFormat : byte
         {
@@ -44,11 +47,32 @@ namespace LenovoCustomLogo
         {
             var logoinfo = new LogoInfo();
             int attr = 7;
-            var size = GetFirmwareEnvironmentVariableExW("LBLDESP", "{871455D0-5576-4FB8-9865-AF0824463B9E}", &logoinfo, sizeof(LogoInfo), ref attr);
-            ThrowForLastWin32Error();
-            if (size != sizeof(LogoInfo))
+            string name = "LBLDESP";
+            string guid = "871455D0-5576-4FB8-9865-AF0824463B9E";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                throw new InvalidOperationException("failed to read LogoInfo");
+                var size = GetFirmwareEnvironmentVariableExW(name, "{" + guid + "}", &logoinfo, sizeof(LogoInfo), ref attr);
+
+                ThrowForLastWin32Error();
+                if (size != sizeof(LogoInfo))
+                {
+                    throw new InvalidOperationException("failed to read LogoInfo");
+                }
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                const int EfiVarAttrLength = 4;
+                using var fs = File.OpenRead(Path.Combine("/sys/firmware/efi/efivars/", name + "-" + guid));
+                var buf = new byte[sizeof(LogoInfo) + EfiVarAttrLength];
+                var size = fs.Read(buf, 0, sizeof(LogoInfo) + EfiVarAttrLength);
+                if (size != sizeof(LogoInfo) + EfiVarAttrLength)
+                {
+                    throw new InvalidOperationException("failed to read LogoInfo");
+                }
+                logoinfo.Enabled = buf[4];
+                logoinfo.Width = BitConverter.ToInt32(buf[5..9], 0);
+                logoinfo.Height = BitConverter.ToInt32(buf[9..13], 0);
+                logoinfo.Format = (LogoFormat) buf[13];
             }
             return logoinfo;
         }
@@ -57,8 +81,29 @@ namespace LenovoCustomLogo
         {
             fixed (void* ptr = &logoInfo)
             {
-                SetFirmwareEnvironmentVariableExW("LBLDESP", "{871455D0-5576-4FB8-9865-AF0824463B9E}", ptr, sizeof(LogoInfo), 7);
-                ThrowForLastWin32Error();
+                int attr = 7;
+                string name = "LBLDESP";
+                string guid = "871455D0-5576-4FB8-9865-AF0824463B9E";
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    SetFirmwareEnvironmentVariableExW(name, "{" + guid + "}", ptr, sizeof(LogoInfo), attr);
+                    ThrowForLastWin32Error();
+                }
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                {
+                    const int EfiVarAttrLength = 4;
+                    using var fs = File.OpenWrite(Path.Combine("/sys/firmware/efi/efivars/", name + "-" + guid));
+                    {
+                        using (var w = new BinaryWriter(fs))
+                        {
+                            w.Write(attr);
+                            w.Write(logoInfo.Enabled);
+                            w.Write(logoInfo.Width);
+                            w.Write(logoInfo.Height);
+                            w.Write((byte) logoInfo.Format);
+                        }
+                    }
+                }
             }
         }
 
@@ -66,10 +111,24 @@ namespace LenovoCustomLogo
         {
             var logovcm = new byte[40];
             int attr = 7;
-            uint size;
-            fixed (byte* ptr = logovcm)
-                size = GetFirmwareEnvironmentVariableExW("LBLDVC", "{871455D1-5576-4FB8-9865-AF0824463C9F}", ptr, 40, ref attr);
-            ThrowForLastWin32Error();
+            uint size = 0;
+            string name = "LBLDVC";
+            string guid = "871455D1-5576-4FB8-9865-AF0824463C9F";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                fixed (byte* ptr = logovcm)
+                    size = GetFirmwareEnvironmentVariableExW(name, "{" + guid + "}", ptr, 40, ref attr);
+                ThrowForLastWin32Error();
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                const int EfiVarAttrLength = 4;
+                using var fs = File.OpenRead(Path.Combine("/sys/firmware/efi/efivars/", name + "-" + guid));
+                var buf = new byte[40 + EfiVarAttrLength];
+                size = (uint) fs.Read(buf, 0, 40 + EfiVarAttrLength);
+                size -= EfiVarAttrLength;
+                logovcm = buf[4..];
+            }
             if (size != 40)
             {
                 throw new InvalidOperationException("failed to read LogoVCM");
@@ -79,10 +138,26 @@ namespace LenovoCustomLogo
 
         public static unsafe void WriteLogoVCM(ReadOnlySpan<byte> vcm)
         {
-            int attr = 7;
-            fixed (byte* ptr = vcm)
-                SetFirmwareEnvironmentVariableExW("LBLDVC", "{871455D1-5576-4FB8-9865-AF0824463C9F}", ptr, 40, attr);
-            ThrowForLastWin32Error();
+            int  attr = 7;
+            string name = "LBLDVC";
+            string guid = "871455D1-5576-4FB8-9865-AF0824463C9F";
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                fixed (byte* ptr = vcm)
+                    SetFirmwareEnvironmentVariableExW(name, "{" + guid + "}", ptr, 40, attr);
+                ThrowForLastWin32Error();
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                const int EfiVarAttrLength = 4;
+                using var fs = File.OpenWrite(Path.Combine("/sys/firmware/efi/efivars/", name + "-" + guid));
+
+                fs.WriteByte((byte) attr);
+                fs.WriteByte((byte) 0x00);
+                fs.WriteByte((byte) 0x00);
+                fs.WriteByte((byte) 0x00);
+                fs.Write(vcm);
+            }
         }
 
         public static uint ReadLogoCrc()
@@ -154,10 +229,21 @@ namespace LenovoCustomLogo
 
         static void PromotePrivileges()
         {
-            if (promoted) return;
-            PromoteProcessPrivileges(SE_SYSTEM_ENVIRONMENT_NAME, true);
-            PromoteProcessPrivileges(SE_BACKUP_NAME, true);
-            promoted = true;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if (geteuid() != 0)
+                {
+                    Console.Error.WriteLine("Warning: Running without root; trying to change anything will likely fail!");
+                }
+                return;
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                if (promoted) return;
+                PromoteProcessPrivileges(SE_SYSTEM_ENVIRONMENT_NAME, true);
+                PromoteProcessPrivileges(SE_BACKUP_NAME, true);
+                promoted = true;
+            }
         }
 
         static void PrintUsage()
@@ -222,7 +308,8 @@ namespace LenovoCustomLogo
                 var logodir = Path.Combine(efivol, "EFI", "Lenovo", "Logo");
                 var prefix = Path.Combine(logodir, $"mylogo_{info.Width}x{info.Height}");
                 string logofile;
-                using var bmp = Image.FromFile(filename);
+                //TODO: restore
+                /*using var bmp = Image.FromFile(filename);
                 bool needConvert = false;
                 if (info.Format.HasFlag(LogoFormat.BMP) && bmp.RawFormat.Equals(ImageFormat.Bmp))
                     logofile = prefix + ".bmp";
@@ -240,7 +327,9 @@ namespace LenovoCustomLogo
 
                 if (bmp.Width > info.Width || bmp.Height > info.Height)
                     throw new ApplicationException("image is too large");
-
+*/
+                bool needConvert = false;
+                logofile = prefix + ".bmp";
                 try
                 {
                     Console.WriteLine("Writing {0}", logofile);
@@ -248,7 +337,7 @@ namespace LenovoCustomLogo
                     if (needConvert)
                     {
                         using var fs = File.OpenWrite(logofile);
-                        bmp.Save(fs, ImageFormat.Bmp);
+                        //bmp.Save(fs, ImageFormat.Bmp);
                     }
                     else
                     {
