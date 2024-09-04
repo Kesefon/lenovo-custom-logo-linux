@@ -221,6 +221,12 @@ namespace LenovoCustomLogo
                 {
                     Console.Error.WriteLine("Warning: Running without root; trying to change anything will likely fail!");
                 }
+                else
+                {
+                    // unknown efivars are marked imutable by default
+                    System.Diagnostics.Process.Start("chattr","-i /sys/firmware/efi/efivars/LBLDESP-871455D0-5576-4FB8-9865-AF0824463B9E");
+                    System.Diagnostics.Process.Start("chattr","-i /sys/firmware/efi/efivars/LBLDVC-871455d1-5576-4fb8-9865-af0824463c9f");
+                }
                 return;
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
