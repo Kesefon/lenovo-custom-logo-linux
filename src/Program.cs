@@ -61,18 +61,13 @@ namespace LenovoCustomLogo
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                const int EfiVarAttrLength = 4;
                 using var fs = File.OpenRead(Path.Combine("/sys/firmware/efi/efivars/", name + "-" + guid));
-                var buf = new byte[sizeof(LogoInfo) + EfiVarAttrLength];
-                var size = fs.Read(buf, 0, sizeof(LogoInfo) + EfiVarAttrLength);
-                if (size != sizeof(LogoInfo) + EfiVarAttrLength)
-                {
-                    throw new InvalidOperationException("failed to read LogoInfo");
-                }
-                logoinfo.Enabled = buf[4];
-                logoinfo.Width = BitConverter.ToInt32(buf[5..9], 0);
-                logoinfo.Height = BitConverter.ToInt32(buf[9..13], 0);
-                logoinfo.Format = (LogoFormat) buf[13];
+                using var r = new BinaryReader(fs);
+                r.ReadInt32();
+                logoinfo.Enabled = r.ReadByte();
+                logoinfo.Width = r.ReadInt32();
+                logoinfo.Height = r.ReadInt32();
+                logoinfo.Format = (LogoFormat) r.ReadByte();
             }
             return logoinfo;
         }
@@ -91,18 +86,13 @@ namespace LenovoCustomLogo
                 }
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
-                    const int EfiVarAttrLength = 4;
                     using var fs = File.OpenWrite(Path.Combine("/sys/firmware/efi/efivars/", name + "-" + guid));
-                    {
-                        using (var w = new BinaryWriter(fs))
-                        {
-                            w.Write(attr);
-                            w.Write(logoInfo.Enabled);
-                            w.Write(logoInfo.Width);
-                            w.Write(logoInfo.Height);
-                            w.Write((byte) logoInfo.Format);
-                        }
-                    }
+                    using var w = new BinaryWriter(fs);
+                    w.Write(attr);
+                    w.Write(logoInfo.Enabled);
+                    w.Write(logoInfo.Width);
+                    w.Write(logoInfo.Height);
+                    w.Write((byte) logoInfo.Format);
                 }
             }
         }
@@ -149,14 +139,10 @@ namespace LenovoCustomLogo
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                const int EfiVarAttrLength = 4;
                 using var fs = File.OpenWrite(Path.Combine("/sys/firmware/efi/efivars/", name + "-" + guid));
-
-                fs.WriteByte((byte) attr);
-                fs.WriteByte((byte) 0x00);
-                fs.WriteByte((byte) 0x00);
-                fs.WriteByte((byte) 0x00);
-                fs.Write(vcm);
+                using var w = new BinaryWriter(fs);
+                w.Write(attr);
+                w.Write(vcm);
             }
         }
 
