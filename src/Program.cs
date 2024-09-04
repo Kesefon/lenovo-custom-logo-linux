@@ -8,6 +8,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Bmp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Processing;
 using static LenovoCustomLogo.Util;
 
 namespace LenovoCustomLogo
@@ -327,8 +328,11 @@ namespace LenovoCustomLogo
                     throw new NotSupportedException("no supported image format");
 
                 if (bmp.Width > info.Width || bmp.Height > info.Height)
-                    throw new ApplicationException("image is too large");
-
+                {
+                    Console.WriteLine("image is too large; scaling down");
+                    bmp.Mutate(x => x.Resize(info.Width,info.Height));
+                    needConvert = true;
+                }
                 try
                 {
                     Console.WriteLine("Writing {0}", logofile);
