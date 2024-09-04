@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Bmp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
 using static LenovoCustomLogo.Util;
 
 namespace LenovoCustomLogo
@@ -299,15 +300,23 @@ namespace LenovoCustomLogo
                 var info = ReadLogoInfo();
                 var logodir = Path.Combine(efivol, "EFI", "Lenovo", "Logo");
                 var prefix = Path.Combine(logodir, $"mylogo_{info.Width}x{info.Height}");
+
+                try
+                {
+                    File.Delete(prefix + ".bmp");
+                    File.Delete(prefix + ".jpg");
+                    File.Delete(prefix + ".png");
+                }
+                catch { }
+
                 string logofile;
-                //TODO: restore
-                /*using var bmp = Image.FromFile(filename);
+                using var bmp = Image.Load(filename);
                 bool needConvert = false;
-                if (info.Format.HasFlag(LogoFormat.BMP) && bmp.RawFormat.Equals(ImageFormat.Bmp))
+                if (info.Format.HasFlag(LogoFormat.BMP) && bmp.Metadata.DecodedImageFormat is BmpFormat)
                     logofile = prefix + ".bmp";
-                else if (info.Format.HasFlag(LogoFormat.JPG) && bmp.RawFormat.Equals(ImageFormat.Jpeg))
+                else if (info.Format.HasFlag(LogoFormat.JPG) && bmp.Metadata.DecodedImageFormat is JpegFormat)
                     logofile = prefix + ".jpg";
-                else if (info.Format.HasFlag(LogoFormat.PNG) && bmp.RawFormat.Equals(ImageFormat.Png))
+                else if (info.Format.HasFlag(LogoFormat.PNG) && bmp.Metadata.DecodedImageFormat is PngFormat)
                     logofile = prefix + ".png";
                 else if (info.Format.HasFlag(LogoFormat.BMP))
                 {
@@ -319,9 +328,7 @@ namespace LenovoCustomLogo
 
                 if (bmp.Width > info.Width || bmp.Height > info.Height)
                     throw new ApplicationException("image is too large");
-*/
-                bool needConvert = false;
-                logofile = prefix + ".bmp";
+
                 try
                 {
                     Console.WriteLine("Writing {0}", logofile);
@@ -329,7 +336,7 @@ namespace LenovoCustomLogo
                     if (needConvert)
                     {
                         using var fs = File.OpenWrite(logofile);
-                        //bmp.Save(fs, ImageFormat.Bmp);
+                        bmp.Save(fs, new BmpEncoder());
                     }
                     else
                     {
