@@ -13,6 +13,8 @@ Change firmware boot logo on some Lenovo (IdeaPad / Yoga / Xiaoxin / Legion) sys
 
 * Yoga Pro 14s 2022 AMD
 
+* IdeaPad 5 15ALC05
+
 * Other models that can query status with the tool. Feel free to test and add to this list.
 
 ## Usage
